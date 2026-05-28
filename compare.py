@@ -3,7 +3,6 @@ import pandas as pd
 
 
 CONVERSION = {
-    "FT ": lambda x: round(x / 304.8, 0),
     "FT": lambda x: round(x / 304.8, 3),
     "MT": lambda x: round(x / 1000, 3),
     "M": lambda x: round(x / 1000, 3),
@@ -13,7 +12,6 @@ CONVERSION = {
 }
 
 DECIMALES = {
-    "FT ": 0,
     "FT": 3,
     "MT": 3,
     "M": 3,
@@ -23,7 +21,6 @@ DECIMALES = {
 }
 
 UMBRAL = {
-    "FT ": 1 / 304.8,
     "FT": 1 / 304.8,
     "MT": 1 / 1000,
     "M": 1 / 1000,

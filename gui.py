@@ -194,8 +194,8 @@ class BomWindow(QtWidgets.QMainWindow):
                 mfg_modelos,
                 resumen,
             ) = calcular_resultado(in_path, ruta_componentes=comp_path)
-            self.log_message(f"Charted: {charted_partes} partes, {charted_modelos} modelos")
-            self.log_message(f"MFGPro:  {mfg_partes} partes, {mfg_modelos} modelos")
+            self.log_message(f"Charted: {charted_partes} numeros de parte, {charted_modelos} niveles")
+            self.log_message(f"MFGPro:  {mfg_partes} numeros de parte, {mfg_modelos} niveles")
             if df_resultado.empty:
                 self.log_message("No se encontraron diferencias entre los BOMs.")
             else:
