@@ -131,9 +131,10 @@ class BomWindow(QtWidgets.QMainWindow):
         self.setStyleSheet(
             "QMainWindow { background-color: #F6F7FB; }"
             "QLabel { color: #1F2937; }"
-            "QLineEdit { background: #FFFFFF; border: 1px solid #D6DAE3; "
+            "QLineEdit { background: #FFFFFF; color: #111827; border: 1px solid #D6DAE3; "
             "border-radius: 6px; padding: 6px 8px; }"
-            "QPlainTextEdit { background: #FFFFFF; border: 1px solid #E1E4EA; "
+            "QLineEdit::placeholder { color: #9CA3AF; }"
+            "QPlainTextEdit { background: #FFFFFF; color: #111827; border: 1px solid #E1E4EA; "
             "border-radius: 6px; padding: 8px; font-family: Consolas; font-size: 10px; }"
             "QPushButton { background: #FFFFFF; border: 1px solid #D6DAE3; "
             "border-radius: 6px; padding: 6px 12px; color: #1F2937; }"
@@ -143,6 +144,11 @@ class BomWindow(QtWidgets.QMainWindow):
             "QPushButton#primary:hover { background: #1D4ED8; }"
             "QPushButton#success { background: #16A34A; color: #FFFFFF; border: none; }"
             "QPushButton#success:hover { background: #15803D; }"
+            "QMessageBox { background-color: #FFFFFF; color: #111827; }"
+            "QMessageBox QLabel { color: #111827; }"
+            "QMessageBox QPushButton { background: #FFFFFF; border: 1px solid #D6DAE3; "
+            "border-radius: 6px; padding: 6px 12px; color: #111827; }"
+            "QMessageBox QPushButton:hover { background: #EEF2F7; }"
         )
 
     def select_input(self):
