@@ -10,7 +10,7 @@ from main import calcular_resultado
 class BomWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("BCN BOM Comparison")
+        self.setWindowTitle("BOM Comparison Tool")
         self.resize(920, 520)
 
         self.result_df = None
