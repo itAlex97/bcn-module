@@ -48,10 +48,10 @@ class BomWindow(QtWidgets.QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        layout.addWidget(QtWidgets.QLabel("Charted BOM original (hoja detail)"))
+        layout.addWidget(QtWidgets.QLabel("Charted BOM"))
 
         self.charted_edit = QtWidgets.QLineEdit()
-        self.charted_edit.setPlaceholderText("Charted BOM original")
+        self.charted_edit.setPlaceholderText("Charted BOM")
         self.charted_edit.setMinimumHeight(34)
         charted_row = QtWidgets.QHBoxLayout()
         charted_row.addWidget(self.charted_edit, 1)
@@ -59,10 +59,10 @@ class BomWindow(QtWidgets.QMainWindow):
         charted_row.addWidget(charted_btn)
         layout.addLayout(charted_row)
 
-        layout.addWidget(QtWidgets.QLabel("MFGPro original (hoja Sheet1)"))
+        layout.addWidget(QtWidgets.QLabel("MFGPro"))
 
         self.mfgpro_edit = QtWidgets.QLineEdit()
-        self.mfgpro_edit.setPlaceholderText("MFGPro original")
+        self.mfgpro_edit.setPlaceholderText("MFGPro")
         self.mfgpro_edit.setMinimumHeight(34)
         mfgpro_row = QtWidgets.QHBoxLayout()
         mfgpro_row.addWidget(self.mfgpro_edit, 1)
@@ -78,7 +78,7 @@ class BomWindow(QtWidgets.QMainWindow):
         layout = QtWidgets.QHBoxLayout()
         layout.setSpacing(8)
 
-        self.process_btn = self._create_button("Procesar", self.run_process, style="primary")
+        self.process_btn = self._create_button("Comparar", self.run_process, style="primary")
         self.process_btn.setMinimumHeight(36)
         self.process_btn.setMinimumWidth(110)
 
