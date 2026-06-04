@@ -4,7 +4,7 @@ import sys
 from PySide6 import QtCore, QtWidgets, QtGui
 
 from export import guardar_resultado
-from main import calcular_resultado
+from main import DEFAULT_COMPONENTS_PATH, calcular_resultado, obtener_partes_afectadas
 
 
 class BomWindow(QtWidgets.QMainWindow):
@@ -42,33 +42,33 @@ class BomWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(main_widget)
 
     def _create_input_section(self):
-        """Crea los campos para seleccionar el Excel principal y componentes."""
+        """Crea los campos para seleccionar Charted y MFGPro."""
         container = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        layout.addWidget(QtWidgets.QLabel("Archivo Excel principal (hojas fijas)"))
+        layout.addWidget(QtWidgets.QLabel("Charted BOM original (hoja detail)"))
 
-        self.input_edit = QtWidgets.QLineEdit()
-        self.input_edit.setPlaceholderText("Archivo Excel principal (hojas fijas)")
-        self.input_edit.setMinimumHeight(34)
-        input_row = QtWidgets.QHBoxLayout()
-        input_row.addWidget(self.input_edit, 1)
-        input_btn = self._create_button("Buscar", self.select_input, style="secondary")
-        input_row.addWidget(input_btn)
-        layout.addLayout(input_row)
+        self.charted_edit = QtWidgets.QLineEdit()
+        self.charted_edit.setPlaceholderText("Charted BOM original")
+        self.charted_edit.setMinimumHeight(34)
+        charted_row = QtWidgets.QHBoxLayout()
+        charted_row.addWidget(self.charted_edit, 1)
+        charted_btn = self._create_button("Buscar", self.select_charted, style="secondary")
+        charted_row.addWidget(charted_btn)
+        layout.addLayout(charted_row)
 
-        layout.addWidget(QtWidgets.QLabel("BD componentes (Excel)"))
+        layout.addWidget(QtWidgets.QLabel("MFGPro original (hoja Sheet1)"))
 
-        self.components_edit = QtWidgets.QLineEdit()
-        self.components_edit.setPlaceholderText("BD componentes (Excel)")
-        self.components_edit.setMinimumHeight(34)
-        comp_row = QtWidgets.QHBoxLayout()
-        comp_row.addWidget(self.components_edit, 1)
-        comp_btn = self._create_button("Buscar", self.select_components, style="secondary")
-        comp_row.addWidget(comp_btn)
-        layout.addLayout(comp_row)
+        self.mfgpro_edit = QtWidgets.QLineEdit()
+        self.mfgpro_edit.setPlaceholderText("MFGPro original")
+        self.mfgpro_edit.setMinimumHeight(34)
+        mfgpro_row = QtWidgets.QHBoxLayout()
+        mfgpro_row.addWidget(self.mfgpro_edit, 1)
+        mfgpro_btn = self._create_button("Buscar", self.select_mfgpro, style="secondary")
+        mfgpro_row.addWidget(mfgpro_btn)
+        layout.addLayout(mfgpro_row)
 
         container.setLayout(layout)
         return container
@@ -158,17 +158,17 @@ class BomWindow(QtWidgets.QMainWindow):
             "QMessageBox QPushButton:hover { background: #EEF2F7; }"
         )
 
-    def select_input(self):
-        """Selecciona el Excel con las hojas Charted y MFGPro."""
-        path = self._select_excel_file("Selecciona el Excel de entrada")
+    def select_charted(self):
+        """Selecciona el archivo original de Charted BOM."""
+        path = self._select_excel_file("Selecciona el Charted BOM")
         if path:
-            self.input_edit.setText(path)
+            self.charted_edit.setText(path)
 
-    def select_components(self):
-        """Selecciona la BD de componentes para completar unidades."""
-        path = self._select_excel_file("Selecciona el Excel de componentes")
+    def select_mfgpro(self):
+        """Selecciona el archivo original de MFGPro."""
+        path = self._select_excel_file("Selecciona el MFGPro")
         if path:
-            self.components_edit.setText(path)
+            self.mfgpro_edit.setText(path)
 
     def _select_excel_file(self, title):
         """Abre un dialogo reutilizable para elegir archivos Excel."""
@@ -182,14 +182,14 @@ class BomWindow(QtWidgets.QMainWindow):
 
     def run_process(self):
         """Valida entradas, ejecuta la comparacion y deja listo el resultado."""
-        in_path = self.input_edit.text().strip()
-        comp_path = self.components_edit.text().strip()
+        charted_path = self.charted_edit.text().strip()
+        mfgpro_path = self.mfgpro_edit.text().strip()
 
-        if not in_path:
-            QtWidgets.QMessageBox.warning(self, "Falta archivo", "Selecciona un archivo de entrada.")
+        if not charted_path:
+            QtWidgets.QMessageBox.warning(self, "Falta Charted", "Selecciona el Charted BOM.")
             return
-        if not comp_path:
-            QtWidgets.QMessageBox.warning(self, "Falta BD", "Selecciona el Excel de componentes.")
+        if not mfgpro_path:
+            QtWidgets.QMessageBox.warning(self, "Falta MFGPro", "Selecciona el MFGPro.")
             return
 
         try:
@@ -203,7 +203,10 @@ class BomWindow(QtWidgets.QMainWindow):
                 mfg_partes,
                 mfg_modelos,
                 resumen,
-            ) = calcular_resultado(in_path, ruta_componentes=comp_path)
+            ) = calcular_resultado(
+                charted_path,
+                ruta_mfgpro=mfgpro_path,
+            )
             self._log_result_summary(
                 df_resultado,
                 charted_partes,
@@ -216,6 +219,7 @@ class BomWindow(QtWidgets.QMainWindow):
             self.save_btn.setEnabled(True)
         except Exception as exc:
             QtWidgets.QMessageBox.critical(self, "Error", str(exc))
+            self.log_message(f"BD componentes esperada: {DEFAULT_COMPONENTS_PATH}")
             self.status_label.setText("Error")
             return
 
@@ -274,6 +278,9 @@ class BomWindow(QtWidgets.QMainWindow):
             self.log_message("No se encontraron diferencias entre los BOMs.")
         else:
             self.log_message(f"Diferencias: {len(df_resultado)} -> {resumen}")
+            self.log_message("Numeros de parte afectados:")
+            for parte in obtener_partes_afectadas(df_resultado):
+                self.log_message(f"   - {parte}")
 
     def log_message(self, message):
         """Agrega una linea al log visible de la ventana."""
