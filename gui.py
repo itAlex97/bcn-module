@@ -13,6 +13,7 @@ class BomWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("BOM Comparison Tool")
         self.resize(920, 520)
 
+        # Se guardan despues de procesar para poder exportar/abrir el resultado.
         self.result_df = None
         self.result_path = None
 
@@ -20,6 +21,7 @@ class BomWindow(QtWidgets.QMainWindow):
         self._apply_stylesheet()
 
     def _setup_ui(self):
+        """Arma la ventana principal y sus tres zonas: entrada, acciones y log."""
         main_widget = QtWidgets.QWidget()
         main_layout = QtWidgets.QVBoxLayout()
         main_layout.setContentsMargins(20, 20, 20, 20)
@@ -40,6 +42,7 @@ class BomWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(main_widget)
 
     def _create_input_section(self):
+        """Crea los campos para seleccionar el Excel principal y componentes."""
         container = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -71,6 +74,7 @@ class BomWindow(QtWidgets.QMainWindow):
         return container
 
     def _create_action_section(self):
+        """Crea botones de proceso/exportacion y el texto de estado."""
         layout = QtWidgets.QHBoxLayout()
         layout.setSpacing(8)
 
@@ -108,6 +112,7 @@ class BomWindow(QtWidgets.QMainWindow):
         return container
 
     def _create_results_section(self):
+        """Crea el panel de mensajes para que el usuario vea el avance."""
         container = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -120,6 +125,7 @@ class BomWindow(QtWidgets.QMainWindow):
         return container
 
     def _create_button(self, text, callback, style="primary"):
+        """Crea botones con estilo consistente y conecta su accion."""
         btn = QtWidgets.QPushButton(text)
         btn.clicked.connect(callback)
         btn.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
@@ -128,6 +134,7 @@ class BomWindow(QtWidgets.QMainWindow):
         return btn
 
     def _apply_stylesheet(self):
+        """Centraliza colores y bordes de la interfaz."""
         self.setStyleSheet(
             "QMainWindow { background-color: #F6F7FB; }"
             "QLabel { color: #1F2937; }"
@@ -152,26 +159,29 @@ class BomWindow(QtWidgets.QMainWindow):
         )
 
     def select_input(self):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self,
-            "Selecciona el Excel de entrada",
-            "",
-            "Excel (*.xlsx *.xls);;Todos (*.*)",
-        )
+        """Selecciona el Excel con las hojas Charted y MFGPro."""
+        path = self._select_excel_file("Selecciona el Excel de entrada")
         if path:
             self.input_edit.setText(path)
 
     def select_components(self):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self,
-            "Selecciona el Excel de componentes",
-            "",
-            "Excel (*.xlsx *.xls);;Todos (*.*)",
-        )
+        """Selecciona la BD de componentes para completar unidades."""
+        path = self._select_excel_file("Selecciona el Excel de componentes")
         if path:
             self.components_edit.setText(path)
 
+    def _select_excel_file(self, title):
+        """Abre un dialogo reutilizable para elegir archivos Excel."""
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            title,
+            "",
+            "Excel (*.xlsx *.xls);;Todos (*.*)",
+        )
+        return path
+
     def run_process(self):
+        """Valida entradas, ejecuta la comparacion y deja listo el resultado."""
         in_path = self.input_edit.text().strip()
         comp_path = self.components_edit.text().strip()
 
@@ -194,12 +204,14 @@ class BomWindow(QtWidgets.QMainWindow):
                 mfg_modelos,
                 resumen,
             ) = calcular_resultado(in_path, ruta_componentes=comp_path)
-            self.log_message(f"Charted: {charted_partes} numeros de parte, {charted_modelos} niveles")
-            self.log_message(f"MFGPro:  {mfg_partes} numeros de parte, {mfg_modelos} niveles")
-            if df_resultado.empty:
-                self.log_message("No se encontraron diferencias entre los BOMs.")
-            else:
-                self.log_message(f"Diferencias: {len(df_resultado)} -> {resumen}")
+            self._log_result_summary(
+                df_resultado,
+                charted_partes,
+                charted_modelos,
+                mfg_partes,
+                mfg_modelos,
+                resumen,
+            )
             self.result_df = df_resultado
             self.save_btn.setEnabled(True)
         except Exception as exc:
@@ -211,6 +223,7 @@ class BomWindow(QtWidgets.QMainWindow):
         QtWidgets.QMessageBox.information(self, "Listo", "Comparacion finalizada.")
 
     def save_result(self):
+        """Guarda el DataFrame de diferencias en un archivo Excel."""
         if self.result_df is None:
             QtWidgets.QMessageBox.warning(self, "Sin resultado", "Primero ejecuta el proceso.")
             return
@@ -235,16 +248,40 @@ class BomWindow(QtWidgets.QMainWindow):
         self.log_message(f"Resultado guardado: {path}")
 
     def open_result(self):
+        """Abre el ultimo archivo guardado desde Windows."""
         if not self.result_path or not os.path.exists(self.result_path):
             QtWidgets.QMessageBox.warning(self, "No encontrado", "No existe el archivo guardado.")
             return
         os.startfile(self.result_path)
 
+    def _log_result_summary(
+        self,
+        df_resultado,
+        charted_partes,
+        charted_modelos,
+        mfg_partes,
+        mfg_modelos,
+        resumen,
+    ):
+        """Muestra en el log los conteos principales del proceso."""
+        self.log_message(
+            f"Charted: {charted_partes} numeros de parte, {charted_modelos} niveles"
+        )
+        self.log_message(
+            f"MFGPro:  {mfg_partes} numeros de parte, {mfg_modelos} niveles"
+        )
+        if df_resultado.empty:
+            self.log_message("No se encontraron diferencias entre los BOMs.")
+        else:
+            self.log_message(f"Diferencias: {len(df_resultado)} -> {resumen}")
+
     def log_message(self, message):
+        """Agrega una linea al log visible de la ventana."""
         self.log.appendPlainText(message)
 
 
 def run_app():
+    """Punto de entrada de la aplicacion grafica."""
     app = QtWidgets.QApplication(sys.argv)
     win = BomWindow()
     win.show()

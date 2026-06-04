@@ -15,14 +15,17 @@ def calcular_resultado(
     ruta_componentes="data/bd_componentes.xlsx",
     hoja_componentes="Data",
 ):
+    """Carga, limpia y compara los BOMs; devuelve datos y conteos para reportar."""
     excel_file = load_excel_file(ruta_archivo)
 
+    # Charted y MFGPro vienen del mismo Excel, pero cada hoja tiene formato propio.
     df_charted_raw = read_charted_raw(excel_file)
     df_charted, model_cols_c, col_issue_map = procesar_charted(df_charted_raw)
 
     df_mfgpro_raw = read_mfgpro_raw(excel_file)
     df_mfgpro, model_cols_m = procesar_mfgpro(df_mfgpro_raw)
 
+    # La BD de componentes ayuda a completar unidades cuando el BOM no las trae.
     df_componentes = load_components_df(ruta_componentes, sheet_name=hoja_componentes)
     df_resultado = comparar_bom(
         df_charted,
@@ -35,9 +38,17 @@ def calcular_resultado(
 
     resumen = None
     if not df_resultado.empty:
+        # Conteo simple para mostrar cuantos agrega/borra/modifica.
         resumen = df_resultado["_estado"].value_counts().to_dict()
 
-    return df_resultado, len(df_charted), len(model_cols_c), len(df_mfgpro), len(model_cols_m), resumen
+    return (
+        df_resultado,
+        len(df_charted),
+        len(model_cols_c),
+        len(df_mfgpro),
+        len(model_cols_m),
+        resumen,
+    )
 
 
 def proceso_calcular(
@@ -46,8 +57,16 @@ def proceso_calcular(
     ruta_componentes="data/bd_componentes.xlsx",
     hoja_componentes="Data",
 ):
+    """Version de consola: calcula diferencias y escribe el Excel final."""
     print("Cargando datos...")
-    df_resultado, charted_partes, charted_modelos, mfg_partes, mfg_modelos, resumen = calcular_resultado(
+    (
+        df_resultado,
+        charted_partes,
+        charted_modelos,
+        mfg_partes,
+        mfg_modelos,
+        resumen,
+    ) = calcular_resultado(
         ruta_archivo,
         ruta_componentes=ruta_componentes,
         hoja_componentes=hoja_componentes,
@@ -67,6 +86,7 @@ def proceso_calcular(
 
 
 if __name__ == "__main__":
+    # Con argumentos corre en consola; sin argumentos abre la interfaz grafica.
     if len(sys.argv) > 1:
         archivo_entrada = sys.argv[1]
         archivo_salida = sys.argv[2] if len(sys.argv) > 2 else "Resultado_BOM.xlsx"
