@@ -372,11 +372,13 @@ class BomWindow(QtWidgets.QMainWindow):
                 comments_row = 87
 
             display_start = 51
-            template_slots = comments_row - display_start
             total_changes = max(0, max_row - 2)
+            spacer_rows = 2
+            template_slots = comments_row - display_start
+            required_slots = total_changes + spacer_rows
 
-            if total_changes > template_slots:
-                extra_rows = total_changes - template_slots
+            if required_slots > template_slots:
+                extra_rows = required_slots - template_slots
                 ranges_to_shift = [str(rng) for rng in bcn_ws.merged_cells.ranges if rng.min_row >= comments_row]
                 for rng_text in ranges_to_shift:
                     bcn_ws.unmerge_cells(rng_text)
@@ -433,11 +435,12 @@ class BomWindow(QtWidgets.QMainWindow):
                     else:
                         dst_cell.value = src_cell.value
 
-            # Asegurar que las filas sobrantes del template queden vacías si no se usan.
-            for rr in range(display_start + total_changes, comments_row):
+            # Dejar siempre dos filas en blanco al final de la lista, con alturas fijas.
+            blank_row_1 = display_start + total_changes
+            blank_row_2 = blank_row_1 + 1
+            for rr, height in ((blank_row_1, 30), (blank_row_2, 10)):
+                bcn_ws.row_dimensions[rr].height = height
                 for cc in range(1, bcn_ws.max_column + 1):
-                    if cc != 3:
-                        continue
                     cell = bcn_ws.cell(row=rr, column=cc)
                     if isinstance(cell, MergedCell):
                         continue
