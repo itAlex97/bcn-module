@@ -4,6 +4,8 @@ import sys
 from PySide6 import QtCore, QtWidgets, QtGui
 
 from export import guardar_resultado
+from openpyxl import load_workbook
+import tempfile
 from main import DEFAULT_COMPONENTS_PATH, calcular_resultado, obtener_partes_afectadas
 
 
@@ -96,9 +98,17 @@ class BomWindow(QtWidgets.QMainWindow):
         self.open_btn.setMinimumHeight(36)
         self.open_btn.setMinimumWidth(130)
 
+        self.export_bcn_btn = self._create_button(
+            "Exportar BCN", self.export_bcn, style="success"
+        )
+        self.export_bcn_btn.setEnabled(False)
+        self.export_bcn_btn.setMinimumHeight(36)
+        self.export_bcn_btn.setMinimumWidth(140)
+
         layout.addWidget(self.process_btn)
         layout.addWidget(self.save_btn)
         layout.addWidget(self.open_btn)
+        layout.addWidget(self.export_bcn_btn)
         layout.addStretch()
 
         self.status_label = QtWidgets.QLabel("Listo")
@@ -217,6 +227,7 @@ class BomWindow(QtWidgets.QMainWindow):
             )
             self.result_df = df_resultado
             self.save_btn.setEnabled(True)
+            self.export_bcn_btn.setEnabled(True)
         except Exception as exc:
             QtWidgets.QMessageBox.critical(self, "Error", str(exc))
             self.log_message(f"BD componentes esperada: {DEFAULT_COMPONENTS_PATH}")
@@ -249,6 +260,7 @@ class BomWindow(QtWidgets.QMainWindow):
 
         self.result_path = path
         self.open_btn.setEnabled(True)
+        self.export_bcn_btn.setEnabled(True)
         self.log_message(f"Resultado guardado: {path}")
 
     def open_result(self):
@@ -281,6 +293,82 @@ class BomWindow(QtWidgets.QMainWindow):
             self.log_message("Numeros de parte afectados:")
             for parte in obtener_partes_afectadas(df_resultado):
                 self.log_message(f"   - {parte}")
+
+    def export_bcn(self):
+        """Crea una copia del template bcn_template, pega los valores del resultado en COMPARE y guarda."""
+        if self.result_df is None:
+            QtWidgets.QMessageBox.warning(self, "Sin resultado", "Primero ejecuta el proceso.")
+            return
+
+        # Preparar origen: usar archivo guardado si existe, si no, generar temporalmente
+        temp_created = False
+        try:
+            if self.result_path and os.path.exists(self.result_path):
+                src_path = self.result_path
+            else:
+                fd, tmp = tempfile.mkstemp(suffix=".xlsx")
+                os.close(fd)
+                guardar_resultado(self.result_df, tmp)
+                src_path = tmp
+                temp_created = True
+
+            src_wb = load_workbook(src_path, data_only=True)
+            src_ws = src_wb["Resultado"] if "Resultado" in src_wb.sheetnames else src_wb.active
+
+            # Obtener internal number desde el Charted original (celda B4)
+            internal = "UNKNOWN"
+            try:
+                charted_path = self.charted_edit.text().strip()
+                if charted_path:
+                    ch_wb = load_workbook(charted_path, data_only=True)
+                    sheet_name = "Detail" if "Detail" in ch_wb.sheetnames else ch_wb.sheetnames[0]
+                    ch_ws = ch_wb[sheet_name]
+                    val = ch_ws["B4"].value
+                    if val is not None:
+                        internal = str(val)
+            except Exception:
+                pass
+
+            # Cargar template y localizar la hoja COMPARE
+            template_path = os.path.join(os.path.dirname(__file__), "data", "bcn_template.xlsx")
+            if not os.path.exists(template_path):
+                QtWidgets.QMessageBox.warning(self, "Template no encontrado", f"No se encontro: {template_path}")
+                return
+
+            tpl_wb = load_workbook(template_path)
+            compare_ws = None
+            for name in tpl_wb.sheetnames:
+                if name.lower() == "compare":
+                    compare_ws = tpl_wb[name]
+                    break
+            if compare_ws is None:
+                QtWidgets.QMessageBox.warning(self, "Hoja COMPARE no encontrada", "El template no contiene la hoja COMPARE.")
+                return
+
+            # Copiar todos los valores del rango usado en la hoja resultado
+            max_row = src_ws.max_row
+            max_col = src_ws.max_column
+            for r in range(1, max_row + 1):
+                for c in range(1, max_col + 1):
+                    compare_ws.cell(row=r, column=c).value = src_ws.cell(row=r, column=c).value
+
+            # Preguntar dónde guardar con nombre por defecto
+            default_name = f"BCN - {internal}.xlsx"
+            path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Guardar BCN", default_name, "Excel (*.xlsx)")
+            if not path:
+                return
+
+            tpl_wb.save(path)
+            QtWidgets.QMessageBox.information(self, "Listo", f"BCN guardado: {path}")
+
+        finally:
+            if temp_created:
+                try:
+                    os.remove(tmp)
+                except Exception:
+                    pass
+
+        
 
     def log_message(self, message):
         """Agrega una linea al log visible de la ventana."""
