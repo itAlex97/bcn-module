@@ -1,10 +1,14 @@
 import os
 import sys
+from copy import copy
 
 from PySide6 import QtCore, QtWidgets, QtGui
 
 from export import guardar_resultado
 from openpyxl import load_workbook
+from openpyxl.formula.translate import Translator
+from openpyxl.cell.cell import MergedCell
+from openpyxl.utils import get_column_letter
 import tempfile
 from main import DEFAULT_COMPONENTS_PATH, calcular_resultado, obtener_partes_afectadas
 
@@ -345,12 +349,99 @@ class BomWindow(QtWidgets.QMainWindow):
                 QtWidgets.QMessageBox.warning(self, "Hoja COMPARE no encontrada", "El template no contiene la hoja COMPARE.")
                 return
 
-            # Copiar todos los valores del rango usado en la hoja resultado
+            if "BCN" not in tpl_wb.sheetnames:
+                QtWidgets.QMessageBox.warning(self, "Hoja BCN no encontrada", "El template no contiene la hoja BCN.")
+                return
+            bcn_ws = tpl_wb["BCN"]
+
             max_row = src_ws.max_row
             max_col = src_ws.max_column
+
+            # Primero: pegar todos los valores del resultado en la hoja COMPARE
             for r in range(1, max_row + 1):
                 for c in range(1, max_col + 1):
                     compare_ws.cell(row=r, column=c).value = src_ws.cell(row=r, column=c).value
+
+            # Detectar dónde empieza la sección de comentarios para insertar filas sin romperla.
+            comments_row = None
+            for rr in range(87, bcn_ws.max_row + 1):
+                if bcn_ws.cell(row=rr, column=3).value == "COMMENTS":
+                    comments_row = rr
+                    break
+            if comments_row is None:
+                comments_row = 87
+
+            display_start = 51
+            template_slots = comments_row - display_start
+            total_changes = max(0, max_row - 2)
+
+            if total_changes > template_slots:
+                extra_rows = total_changes - template_slots
+                ranges_to_shift = [str(rng) for rng in bcn_ws.merged_cells.ranges if rng.min_row >= comments_row]
+                for rng_text in ranges_to_shift:
+                    bcn_ws.unmerge_cells(rng_text)
+                bcn_ws.insert_rows(comments_row, amount=extra_rows)
+                for rng_text in ranges_to_shift:
+                    start, end = rng_text.split(":")
+                    start_col = "".join(ch for ch in start if ch.isalpha())
+                    start_row = int("".join(ch for ch in start if ch.isdigit())) + extra_rows
+                    end_col = "".join(ch for ch in end if ch.isalpha())
+                    end_row = int("".join(ch for ch in end if ch.isdigit())) + extra_rows
+                    bcn_ws.merge_cells(f"{start_col}{start_row}:{end_col}{end_row}")
+                comments_row += extra_rows
+
+            # Copiar la fila 51 como plantilla para cada cambio.
+            source_row = 51
+            source_height = bcn_ws.row_dimensions[source_row].height
+            source_merges = [mr for mr in bcn_ws.merged_cells.ranges if mr.min_row == source_row and mr.max_row == source_row]
+            for index in range(1, total_changes + 1):
+                target_row = display_start + index - 1
+                if target_row >= comments_row:
+                    # Si hiciera falta más espacio por algún motivo, insertar antes de COMMENTS.
+                    bcn_ws.insert_rows(comments_row, amount=1)
+                    comments_row += 1
+
+                if target_row > 84:
+                    # Recrear las fusiones de la fila plantilla para las filas nuevas.
+                    for mr in source_merges:
+                        shifted = f"{get_column_letter(mr.min_col)}{target_row}:{get_column_letter(mr.max_col)}{target_row}"
+                        if shifted not in [str(rng) for rng in bcn_ws.merged_cells.ranges]:
+                            bcn_ws.merge_cells(shifted)
+
+                if source_height is not None:
+                    bcn_ws.row_dimensions[target_row].height = source_height
+
+                for cc in range(1, bcn_ws.max_column + 1):
+                    src_cell = bcn_ws.cell(row=source_row, column=cc)
+                    dst_cell = bcn_ws.cell(row=target_row, column=cc)
+
+                    if isinstance(src_cell, MergedCell) or isinstance(dst_cell, MergedCell):
+                        continue
+
+                    dst_cell._style = copy(src_cell._style)
+                    dst_cell.font = copy(src_cell.font)
+                    dst_cell.fill = copy(src_cell.fill)
+                    dst_cell.border = copy(src_cell.border)
+                    dst_cell.alignment = copy(src_cell.alignment)
+                    dst_cell.number_format = src_cell.number_format
+                    dst_cell.protection = copy(src_cell.protection)
+
+                    if cc == 3:
+                        dst_cell.value = index
+                    elif isinstance(src_cell.value, str) and src_cell.value.startswith("="):
+                        dst_cell.value = Translator(src_cell.value, origin=src_cell.coordinate).translate_formula(dst_cell.coordinate)
+                    else:
+                        dst_cell.value = src_cell.value
+
+            # Asegurar que las filas sobrantes del template queden vacías si no se usan.
+            for rr in range(display_start + total_changes, comments_row):
+                for cc in range(1, bcn_ws.max_column + 1):
+                    if cc != 3:
+                        continue
+                    cell = bcn_ws.cell(row=rr, column=cc)
+                    if isinstance(cell, MergedCell):
+                        continue
+                    cell.value = None
 
             # Preguntar dónde guardar con nombre por defecto
             default_name = f"BCN - {internal}.xlsx"
