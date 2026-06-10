@@ -396,21 +396,12 @@ class BomWindow(QtWidgets.QMainWindow):
             source_row = 51
             source_height = bcn_ws.row_dimensions[source_row].height
             source_merges = [mr for mr in bcn_ws.merged_cells.ranges if mr.min_row == source_row and mr.max_row == source_row]
-            for index in range(1, total_changes + 1):
-                target_row = display_start + index - 1
-                if target_row >= comments_row:
-                    # Si hiciera falta más espacio por algún motivo, insertar antes de COMMENTS.
-                    bcn_ws.insert_rows(comments_row, amount=1)
-                    comments_row += 1
 
-                if target_row > 84:
-                    # Recrear las fusiones de la fila plantilla para las filas nuevas.
-                    for mr in source_merges:
-                        shifted = f"{get_column_letter(mr.min_col)}{target_row}:{get_column_letter(mr.max_col)}{target_row}"
-                        if shifted not in [str(rng) for rng in bcn_ws.merged_cells.ranges]:
-                            bcn_ws.merge_cells(shifted)
-
-                if source_height is not None:
+            def clone_template_row(target_row, copy_values=True, height_override=None):
+                """Copia formato/bordes de la fila plantilla a otra fila sin tocar celdas fusionadas."""
+                if height_override is not None:
+                    bcn_ws.row_dimensions[target_row].height = height_override
+                elif source_height is not None:
                     bcn_ws.row_dimensions[target_row].height = source_height
 
                 for cc in range(1, bcn_ws.max_column + 1):
@@ -428,23 +419,46 @@ class BomWindow(QtWidgets.QMainWindow):
                     dst_cell.number_format = src_cell.number_format
                     dst_cell.protection = copy(src_cell.protection)
 
+                    if not copy_values:
+                        dst_cell.value = None
+                        continue
+
                     if cc == 3:
-                        dst_cell.value = index
+                        dst_cell.value = target_row - display_start + 1
                     elif isinstance(src_cell.value, str) and src_cell.value.startswith("="):
                         dst_cell.value = Translator(src_cell.value, origin=src_cell.coordinate).translate_formula(dst_cell.coordinate)
                     else:
                         dst_cell.value = src_cell.value
 
+            def apply_row_rules(target_row):
+                """Reaplica las formulas de reglas de la fila 51 a AN/AO/AP en la fila destino."""
+                for col_idx in (40, 41, 42):
+                    src_cell = bcn_ws.cell(row=source_row, column=col_idx)
+                    dst_cell = bcn_ws.cell(row=target_row, column=col_idx)
+                    if isinstance(src_cell.value, str) and src_cell.value.startswith("="):
+                        dst_cell.value = Translator(src_cell.value, origin=src_cell.coordinate).translate_formula(dst_cell.coordinate)
+            for index in range(1, total_changes + 1):
+                target_row = display_start + index - 1
+                if target_row >= comments_row:
+                    # Si hiciera falta más espacio por algún motivo, insertar antes de COMMENTS.
+                    bcn_ws.insert_rows(comments_row, amount=1)
+                    comments_row += 1
+
+                if target_row > 84:
+                    # Recrear las fusiones de la fila plantilla para las filas nuevas.
+                    for mr in source_merges:
+                        shifted = f"{get_column_letter(mr.min_col)}{target_row}:{get_column_letter(mr.max_col)}{target_row}"
+                        if shifted not in [str(rng) for rng in bcn_ws.merged_cells.ranges]:
+                            bcn_ws.merge_cells(shifted)
+
+                clone_template_row(target_row, copy_values=True)
+                apply_row_rules(target_row)
+
             # Dejar siempre dos filas en blanco al final de la lista, con alturas fijas.
             blank_row_1 = display_start + total_changes
             blank_row_2 = blank_row_1 + 1
             for rr, height in ((blank_row_1, 30), (blank_row_2, 10)):
-                bcn_ws.row_dimensions[rr].height = height
-                for cc in range(1, bcn_ws.max_column + 1):
-                    cell = bcn_ws.cell(row=rr, column=cc)
-                    if isinstance(cell, MergedCell):
-                        continue
-                    cell.value = None
+                clone_template_row(rr, copy_values=False, height_override=height)
 
             # Preguntar dónde guardar con nombre por defecto
             default_name = f"BCN - {internal}.xlsx"
