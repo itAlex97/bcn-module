@@ -354,6 +354,11 @@ class BomWindow(QtWidgets.QMainWindow):
                 return
             bcn_ws = tpl_wb["BCN"]
 
+            template_cf_rules = {
+                str(cf_range.sqref): [copy(rule) for rule in rules]
+                for cf_range, rules in bcn_ws.conditional_formatting._cf_rules.items()
+            }
+
             max_row = src_ws.max_row
             max_col = src_ws.max_column
 
@@ -429,14 +434,6 @@ class BomWindow(QtWidgets.QMainWindow):
                         dst_cell.value = Translator(src_cell.value, origin=src_cell.coordinate).translate_formula(dst_cell.coordinate)
                     else:
                         dst_cell.value = src_cell.value
-
-            def apply_row_rules(target_row):
-                """Reaplica las formulas de reglas de la fila 51 a AN/AO/AP en la fila destino."""
-                for col_idx in (40, 41, 42):
-                    src_cell = bcn_ws.cell(row=source_row, column=col_idx)
-                    dst_cell = bcn_ws.cell(row=target_row, column=col_idx)
-                    if isinstance(src_cell.value, str) and src_cell.value.startswith("="):
-                        dst_cell.value = Translator(src_cell.value, origin=src_cell.coordinate).translate_formula(dst_cell.coordinate)
             for index in range(1, total_changes + 1):
                 target_row = display_start + index - 1
                 if target_row >= comments_row:
@@ -452,13 +449,26 @@ class BomWindow(QtWidgets.QMainWindow):
                             bcn_ws.merge_cells(shifted)
 
                 clone_template_row(target_row, copy_values=True)
-                apply_row_rules(target_row)
 
             # Dejar siempre dos filas en blanco al final de la lista, con alturas fijas.
             blank_row_1 = display_start + total_changes
             blank_row_2 = blank_row_1 + 1
             for rr, height in ((blank_row_1, 30), (blank_row_2, 10)):
                 clone_template_row(rr, copy_values=False, height_override=height)
+
+            # Reconstruir formato condicional solo para las filas con cambios.
+            bcn_ws.conditional_formatting._cf_rules.clear()
+            if total_changes > 0:
+                last_change_row = display_start + total_changes - 1
+
+                def add_cf(template_range, target_range):
+                    for rule in template_cf_rules.get(template_range, []):
+                        bcn_ws.conditional_formatting.add(target_range, copy(rule))
+
+                add_cf("AN51:AN84", f"AN51:AN{last_change_row}")
+                add_cf("AO51:AO84", f"AO51:AO{last_change_row}")
+                add_cf("AP51:AP84", f"AP51:AP{last_change_row}")
+                add_cf("AQ51:AT84", f"AQ51:AT{last_change_row}")
 
             # Preguntar dónde guardar con nombre por defecto
             default_name = f"BCN - {internal}.xlsx"
