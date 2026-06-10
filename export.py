@@ -4,7 +4,10 @@ from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 
 
-def guardar_resultado(df_result, ruta_salida):
+EXCEL_SHEET_PASSWORD = "Producto"
+
+
+def guardar_resultado(df_result, ruta_salida, sheet_password=None):
     """Genera el Excel final con formato parecido al reporte esperado."""
     if not df_result.empty:
         df_result = df_result.sort_values(["Model", "Part Nbr."]).reset_index(drop=True)
@@ -103,5 +106,11 @@ def guardar_resultado(df_result, ruta_salida):
 
     ws.sheet_view.zoomScale = 85
     ws.sheet_view.showGridLines = False
+
+    sheet_password = sheet_password or EXCEL_SHEET_PASSWORD
+    if sheet_password:
+        # Protege la hoja para impedir edicion, pero permite seleccionar y copiar celdas.
+        ws.protection.sheet = True
+        ws.protection.set_password(sheet_password)
 
     wb.save(ruta_salida)
